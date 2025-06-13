@@ -22,6 +22,14 @@ resource "azurerm_private_dns_zone" "this" {
   resource_group_name = azurerm_resource_group.this.name
 }
 
+resource "azurerm_private_dns_zone_virtual_network_link" "this" {
+  name                  = "vnet-dns-link"
+  resource_group_name   = azurerm_resource_group.this.name
+  private_dns_zone_name = azurerm_private_dns_zone.this.name
+  virtual_network_id    = module.avm_res_network_virtualnetwork.resource_id
+  registration_enabled  = false
+}
+
 resource "azurerm_resource_group" "this" {
   location = var.location
   name     = module.naming.resource_group.name_unique
@@ -256,7 +264,7 @@ module "avm_res_compute_virtualmachine" {
     role_assignment_1 = {
       principal_id               = data.azurerm_client_config.current.client_id
       role_definition_id_or_name = "Virtual Machine Contributor"
-      description                = "Assign the Virtual Machine Contributor role to the deployment user on this virtual machine resource scope."
+      description                = "Assign the Virtual Machine Contributor role to the deployment user on this virtual machine."
       principal_type             = "ServicePrincipal"
     }
   }
@@ -264,7 +272,19 @@ module "avm_res_compute_virtualmachine" {
     role_assignment_1 = {
       scope_resource_id          = azurerm_resource_group.this.id
       role_definition_id_or_name = "Contributor"
-      description                = "Assign the Contributor role to the user assigned identity on this virtual machine resource scope."
+      description                = "Assign the Contributor role to the system managed identity on this virtual machine."
+      principal_type             = "ServicePrincipal"
+    },
+    role_assignment_2 = {
+      scope_resource_id          = azurerm_resource_group.this.id
+      role_definition_id_or_name = "Container Registry Repository Writer"
+      description                = "Assign the Container Registry Repository Writer role to the system managed identity on this virtual machine."
+      principal_type             = "ServicePrincipal"
+    },
+    role_assignment_3 = {
+      scope_resource_id          = azurerm_resource_group.this.id
+      role_definition_id_or_name = "Azure Kubernetes Service Cluster Admin Role"
+      description                = "Assign the Azure Kubernetes Service Cluster Admin Role role to the system managed identity on this virtual machine."
       principal_type             = "ServicePrincipal"
     }
   }
