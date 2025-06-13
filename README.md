@@ -1,3 +1,8 @@
-# arXiv AI Agent using Azure OpenAI, Flask and AKS.
+# Azure Playground
 
+This is a playground for testing features of Azure services. 
 
+## Infrastructure
+ 
+ 
+## Application

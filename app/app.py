@@ -1,4 +1,7 @@
-"""Flask web application integrating Azure OpenAI with Microsoft Entra authentication."""
+"""
+Flask web application integrating Azure OpenAI with Microsoft Entra
+authentication.
+"""
 
 import os
 from flask import Flask, render_template, request
@@ -21,11 +24,10 @@ client = AzureOpenAI(
 def index():
     """Render the main page and handle user message submission to Azure OpenAI."""
     response = None
-    if request.method == 'POST':  #  Handle form submission
+    if request.method == 'POST': 
         user_message = request.form.get('message')
         if user_message:
             try:
-                # Call the Azure OpenAI API with the user's message
                 completion = client.chat.completions.create(
                     model="gpt-4.1",
                     messages=[{"role": "user", "content": user_message}]

@@ -64,3 +64,4 @@ build/
 # Custom files
 scratchpad.md
 recycle
+vm-local-*
