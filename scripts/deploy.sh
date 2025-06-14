@@ -163,7 +163,7 @@ docker push "${IMAGE_FULL_NAME}"
 
 # Connect to AKS cluster
 info "Connecting to Azure Kubernetes Service (AKS)..."
-az aks get-credentials --resource-group $AZURE_RG_NAME --name "${AKS_CLUSTER_NAME}" --overwrite-existing
+az aks get-credentials --resource-group "$AZURE_RG_NAME" --name "${AKS_CLUSTER_NAME}" --overwrite-existing
 kubelogin convert-kubeconfig -l azurecli
 az login --identity
 
