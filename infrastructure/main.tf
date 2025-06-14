@@ -18,7 +18,7 @@ provider "azurerm" {
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_private_dns_zone" "this" {
-  name                = module.naming.private_dns_zone.name_unique
+  name                = var.private_dns_zone_name
   resource_group_name = azurerm_resource_group.this.name
 }
 
@@ -92,7 +92,6 @@ module "avm-ptn-aks-production" {
       azurerm_user_assigned_identity.this.id
     ]
   }
-  tags                = var.tags
   node_pools = {
     workload = {
       name                 = "workload"
@@ -287,6 +286,12 @@ module "avm_res_compute_virtualmachine" {
       role_definition_id_or_name = "Azure Kubernetes Service Cluster Admin Role"
       description                = "Assign the Azure Kubernetes Service Cluster Admin Role role to the system managed identity on this virtual machine."
       principal_type             = "ServicePrincipal"
+    },
+    role_assignment_4 = {
+      scope_resource_id          = azurerm_resource_group.this.id
+      role_definition_id_or_name = "Cognitive Services Contributor"
+      description                = "Assign the Cognitive Services Contributor Role role to the system managed identity on this virtual machine."
+      principal_type             = "ServicePrincipal"
     }
   }
   os_type  = "Linux"
@@ -328,4 +333,3 @@ module "avm-res-cognitiveservices-account" {
     }
   }
 }
-

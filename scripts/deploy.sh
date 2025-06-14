@@ -13,6 +13,9 @@ error() { echo -e "\033[1;31m[ERROR]\033[0m $*" >&2; }
 # Ensure Azure CLI is installed
 if ! command -v az &> /dev/null; then
     info "Azure CLI not found. Installing Azure CLI..."
+    curl -sL https://packages.microsoft.com/keys/microsoft.asc | \
+    gpg --dearmor | \
+    sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
     echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
     sudo apt update
     sudo apt install -y azure-cli

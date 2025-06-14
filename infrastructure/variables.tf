@@ -30,5 +30,10 @@ variable "tags" {
   }
 }
 
-
+variable "private_dns_zone_name" {
+  description = "The name of the private DNS zone for the Azure Container Registry"
+  default     = "private.azureplayground.io"
+  type        = string
+  
+}
 
