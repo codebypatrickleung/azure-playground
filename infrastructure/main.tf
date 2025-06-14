@@ -52,9 +52,9 @@ module "avm-res-cognitiveservices-account" {
   tags                = var.tags
   role_assignments = {
     "role_assignments_1" = {
-      principal_id    = data.azurerm_client_config.current.client_id
+      principal_id               = data.azurerm_client_config.current.client_id
       role_definition_id_or_name = "Cognitive Services OpenAI User"
-      principal_type  = "ServicePrincipal"
+      principal_type             = "ServicePrincipal"
     }
   }
 
