@@ -15,7 +15,7 @@ The Terraform code in this repository provisions the following Azure services:
 - Azure Virtual Network (VNet)
 - Azure Private Link
 
-These resources are provisioned according to Azure best practices (within the constraints of my budget) and I use mostly Azure Verified Modules to take out all the heavy lifting. If you want to learn more about the modules I used, you can find them in the [Terraform](https://registry.terraform.io/search/modules?namespace=Azure&provider=azure&q=Azure%2Favm) registry. 
+I use mostly Azure Verified Modules to take out all the heavy lifting. If you want to learn more about the modules I used, you can find them in the [Terraform](https://registry.terraform.io/search/modules?namespace=Azure&provider=azure&q=Azure%2Favm) registry. 
 
 ## Application
 

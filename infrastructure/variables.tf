@@ -9,13 +9,6 @@ variable "enable_telemetry" {
   type        = bool
 }
 
-variable "acr_zone_redundancy_enabled" {
-  description = "Enable or disable zone redundancy for the Azure Container Registry"
-  default     = true
-  type        = bool
-
-}
-
 variable "location" {
   description = "Specifies the location for the resource group and all the resources"
   default     = "swedencentral"
@@ -28,12 +21,5 @@ variable "tags" {
     createdWith = "Terraform"
     project     = "azure-playground"
   }
-}
-
-variable "private_dns_zone_name" {
-  description = "The name of the private DNS zone for the Azure Container Registry"
-  default     = "private.azureplayground.io"
-  type        = string
-  
 }
 

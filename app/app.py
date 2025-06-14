@@ -29,7 +29,7 @@ def index():
         if user_message:
             try:
                 completion = client.chat.completions.create(
-                    model="gpt-4.1",
+                    model="model-router",
                     messages=[{"role": "user", "content": user_message}]
                 )
                 ai_message = completion.choices[0].message.content
