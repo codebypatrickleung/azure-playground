@@ -26,7 +26,7 @@ variable "tags" {
   description = "(Optional) Specifies tags for all the resources"
   default = {
     createdWith = "Terraform"
-    project     = "arxiv-ai-agent"
+    project     = "azure-playground"
   }
 }
 

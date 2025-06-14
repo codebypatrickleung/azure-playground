@@ -100,6 +100,7 @@ info "Authenticating with Azure..."
 az login --identity > /dev/null 2>&1
 
 # Set up variables
+PROJECT_TAG="azure-playground"
 IMAGE_NAME="arxiv-ai-agent"
 TAG="v1"
 TEMPERATURE=0.2
@@ -109,9 +110,9 @@ CONFIGMAPTEMPLATE="configMap.yaml"
 NAMESPACE="arxiv-ai-agent"
 
 # Retrieve Azure resource group
-AZURE_RG_NAME=$(az group list --tag project=arxiv-ai-agent --query "[0].name" -o tsv)
+AZURE_RG_NAME=$(az group list --tag project="${PROJECT_TAG}" --query "[0].name" -o tsv)
 if [[ -z "$AZURE_RG_NAME" ]]; then
-    error "Could not find Azure resource group with tag project=arxiv-ai-agent."
+    error "Could not find Azure resource group with tag "${PROJECT_TAG}"."
     exit 1
 fi
 info "Found Azure resource group: $AZURE_RG_NAME"

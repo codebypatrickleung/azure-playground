@@ -18,7 +18,7 @@ provider "azurerm" {
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_private_dns_zone" "this" {
-  name                = "privatelink.azurecr.io"
+  name                = module.naming.private_dns_zone.name_unique
   resource_group_name = azurerm_resource_group.this.name
 }
 
@@ -92,7 +92,6 @@ module "avm-ptn-aks-production" {
       azurerm_user_assigned_identity.this.id
     ]
   }
-  private_dns_zone_id = azurerm_private_dns_zone.this.id
   tags                = var.tags
   node_pools = {
     workload = {
