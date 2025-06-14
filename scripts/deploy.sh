@@ -88,6 +88,9 @@ if ! command -v kubelogin &> /dev/null; then
     unzip kubelogin-linux-amd64.zip
     sudo mv bin/linux_amd64/kubelogin /usr/local/bin/
     sudo chmod +x /usr/local/bin/kubelogin
+    kubelogin --version
+    rm kubelogin-linux-amd64.zip
+    rm -rf bin
 else
     info "kubelogin is already installed."
 fi
@@ -161,27 +164,7 @@ docker push "${IMAGE_FULL_NAME}"
 # Connect to AKS cluster
 info "Connecting to Azure Kubernetes Service (AKS)..."
 az aks get-credentials --resource-group $AZURE_RG_NAME --name "${AKS_CLUSTER_NAME}" --overwrite-existing
+kubelogin convert-kubeconfig -l azurecli
+az login --identity
 
 
-
-
-
-
-
-# Ensure Kubernetes namespace exists
-if kubectl get namespace "${NAMESPACE}" &> /dev/null; then
-    info "Namespace '${NAMESPACE}' already exists."
-else
-    info "Creating namespace '${NAMESPACE}'..."
-    kubectl create namespace "${NAMESPACE}"
-fi
-
-# Create or update ConfigMap
-info "Applying ConfigMap to namespace '${NAMESPACE}'..."
-yq ".data.TEMPERATURE |= \"${TEMPERATURE}\" |
-    .data.AZURE_OPENAI_BASE |= \"${AZURE_OPENAI_ENDPOINT}\" |
-    .data.AZURE_OPENAI_MODEL |= \"${AZURE_OPENAI_MODEL}\" |
-    .data.AZURE_OPENAI_DEPLOYMENT |= \"${AZURE_OPENAI_DEPLOYMENT}\"" \
-    "${CONFIGMAPTEMPLATE}" | kubectl apply -n "${NAMESPACE}" -f -
-
-info "Deployment script completed successfully."

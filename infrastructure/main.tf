@@ -92,6 +92,8 @@ module "avm-ptn-aks-production" {
       azurerm_user_assigned_identity.this.id
     ]
   }
+  private_dns_zone_id = azurerm_private_dns_zone.this.id
+  tags                = var.tags
   node_pools = {
     workload = {
       name                 = "workload"
