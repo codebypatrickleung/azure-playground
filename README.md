@@ -6,14 +6,9 @@ This repository serves as my own sandbox for exploring and testing Azure service
 
 The Terraform code in this repository provisions the following Azure services:
 
-- Azure Kubernetes Service (AKS)
 - Azure OpenAI Service
+- Azure Kubernetes Service (AKS)
 - Azure Container Registry (ACR)
-- Azure Key Vault
-- Azure Bastion
-- Azure Virtual Machine (Jump box)
-- Azure Virtual Network (VNet)
-- Azure Private Link
 
 I use mostly Azure Verified Modules to take out all the heavy lifting. If you want to learn more about the modules I used, you can find them in the [Terraform](https://registry.terraform.io/search/modules?namespace=Azure&provider=azure&q=Azure%2Favm) registry. 
 
