@@ -122,6 +122,8 @@ cat $CONFIGMAPYAML |
 
 info "Applying deployment configuration..."
 
-kubectl apply -n "${NAMESPACE}" -f "${DEPLOYYAML}"
+cat $DEPLOYYAML |
+    yq "(.spec.template.spec.containers[0].image)|="\""$IMAGE_FULL_NAME"\" |
+    kubectl apply -n $namespace -f -
 
 info "Deployment script completed successfully."

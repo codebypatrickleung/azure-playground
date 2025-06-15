@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: arxiv-ai-agent
-          image: acru4q6.azurecr.io/arxiv-ai-agent:v1  
+          image: patrickleung.azurecr.io/arxiv-ai-agent:v1  
           ports:
             - containerPort: 5001
           env:
