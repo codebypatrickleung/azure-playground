@@ -42,7 +42,8 @@ TAG="v1"
 TEMPERATURE=0.2
 AZURE_OPENAI_MODEL="model-router"
 AZURE_OPENAI_DEPLOYMENT="model-router"
-CONFIGMAPTEMPLATE="script/configMap.yaml"
+CONFIGMAPYAML="scripts/configmap.yaml"
+DEPLOYYAML="scripts/app.yaml"
 NAMESPACE="default"
 
 # Retrieve Azure resource group
@@ -94,14 +95,17 @@ docker build -t "${IMAGE_FULL_NAME}" -f scripts/Dockerfile .
 info "Pushing Docker image to Azure Container Registry..."
 docker push "${IMAGE_FULL_NAME}"
 
-# Connect to AKS cluster
+# Run the docker container
+# docker run -it p 5001:5001 -e AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT" --name "$IMAGE_FULL_NAME"
+
+# # Connect to AKS cluster
 info "Connecting to AKS cluster..."
 az aks get-credentials --resource-group "$AZURE_RG_NAME" --name "${AKS_CLUSTER_NAME}" --overwrite-existing
 
 info "Verifying Kubernetes nodes..."
 kubectl get nodes
 
-# Ensure Kubernetes namespace exists
+# # Ensure Kubernetes namespace exists
 if kubectl get namespace "${NAMESPACE}" &> /dev/null; then
     info "Namespace '${NAMESPACE}' already exists."
 else
@@ -109,9 +113,15 @@ else
     kubectl create namespace "${NAMESPACE}"
 fi
 
-# Create or update ConfigMap
-info "Applying ConfigMap to namespace '${NAMESPACE}'..."
-yq ".data.AZURE_OPENAI_ENDPOINT |= \"${AZURE_OPENAI_ENDPOINT}\" |
-    "${CONFIGMAPTEMPLATE}" | kubectl apply -n "${NAMESPACE}" -f -
+# Deploy the application
+info "Deploying application to AKS cluster..."
+
+cat $CONFIGMAPYAML |
+    yq "(.data.AZURE_OPENAI_DEPLOYMENT)|="\""$AZURE_OPENAI_ENDPOINT"\" |
+    kubectl apply -n "${NAMESPACE}" -f -
+
+info "Applying deployment configuration..."
+
+kubectl apply -n "${NAMESPACE}" -f "${DEPLOYYAML}"
 
 info "Deployment script completed successfully."

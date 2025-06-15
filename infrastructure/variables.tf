@@ -22,4 +22,3 @@ variable "tags" {
     project     = "azure-playground"
   }
 }
-

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arxiv-ai-agent
+  labels:
+    app: arxiv-ai-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: arxiv-ai-agent
+  template:
+    metadata:
+      labels:
+        app: arxiv-ai-agent
+    spec:
+      containers:
+        - name: arxiv-ai-agent
+          image: acru4q6.azurecr.io/arxiv-ai-agent:v1  
+          ports:
+            - containerPort: 5001
+          env:
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: arxiv-ai-agent-config
+                  key: AZURE_OPENAI_ENDPOINT
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arxiv-ai-agent
+spec:
+  type: LoadBalancer
+  selector:
+    app: arxiv-ai-agent
+  ports:
+    - protocol: TCP
+      port: 5001
+      targetPort: 5001

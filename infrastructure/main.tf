@@ -15,8 +15,7 @@ provider "azurerm" {
   subscription_id = var.subscription_id
 }
 
-data "azurerm_client_config" "current" {
-}
+data "azurerm_client_config" "current" {}
 
 resource "azurerm_resource_group" "this" {
   location = var.location
@@ -48,13 +47,13 @@ module "avm-res-cognitiveservices-account" {
   location            = var.location
   name                = module.naming.cognitive_account.name_unique
   resource_group_name = azurerm_resource_group.this.name
+  enable_telemetry    = var.enable_telemetry
   sku_name            = "S0"
   tags                = var.tags
   role_assignments = {
     "role_assignments_1" = {
-      principal_id               = data.azurerm_client_config.current.client_id
+      principal_id               = data.azurerm_client_config.current.object_id
       role_definition_id_or_name = "Cognitive Services OpenAI User"
-      principal_type             = "ServicePrincipal"
     }
   }
 
