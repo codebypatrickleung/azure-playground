@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-playground
+  labels:
+    app: azure-playground
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: azure-playground
+  template:
+    metadata:
+      labels:
+        app: azure-playground
+    spec:
+      containers:
+        - name: azure-playground
+          image: patrickleung.azurecr.io/azure-playground:v1  
+          ports:
+            - containerPort: 5001
+          env:
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: azure-playground-config
+                  key: AZURE_OPENAI_ENDPOINT
