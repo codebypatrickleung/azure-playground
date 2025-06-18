@@ -1,10 +1,10 @@
 # Azure Playground
 
-This repository serves as my own sandbox for exploring and testing Azure services. It is intended for experimenting with new features, learning about Azure, and building applications that leverage Azure resources. Written in Terraform, so that I can easily tear down the infrastructure when I'm done testing.
+This repository serves as my own sandbox for exploring and testing Azure services. It is intended for experimenting with new features, learning about Azure, and building applications that leverage Azure resources. 
 
 ## Azure Infrastructure
 
-The Terraform code in this repository provisions the following Azure services:
+All the Azure infrastructure is provisioned using Terraform, so that I can easily tear down the infrastructure when I'm done testing. The Terraform code in this repository provisions the following Azure services:
 
 - Azure OpenAI Services
 - Azure Kubernetes Service (AKS)
@@ -21,7 +21,9 @@ The Dev/Test Standard for AKS pattern module also provisions an Azure Container 
 
 ## Application
 
-The framework I have selected here is Vue.js for the frontend and Python FastAPI for the backend. The LLM model utilizes the [model router](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/model-router) (introduced May 2025), enabling the app to route requests to different models based on the request type. This seems interesting as we might be able to combine different models for different tasks.
+The framework I have selected here is Vue.js for the frontend and Python FastAPI for the backend. This combination provides a good balance of modularity and simplicity. 
+
+The LLM model utilizes the [model router](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/model-router) (introduced May 2025), enabling the app to route requests to different models based on the request type. This seems interesting as we might be able to combine different models for different tasks.
 
 ## Getting Started
 
