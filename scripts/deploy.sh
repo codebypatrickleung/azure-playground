@@ -1,222 +1,351 @@
 #!/bin/bash
 
-# Azure Playground Deployment Script (macOS)
 set -euo pipefail
 
-# Logging functions
+#---------------------------------------------#
+# Constants and Global Variables
+#---------------------------------------------#
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Image and deployment settings
+readonly PROJECT_TAG="azure-playground"
+readonly FRONTEND_IMAGE_NAME="azure-playground-frontend"
+readonly LLM_SERVICE_IMAGE_NAME="azure-playground-llm-service"
+readonly TAG="latest"
+readonly NAMESPACE="default"
+readonly AZURE_OPENAI_MODEL="model-router"
+readonly AZURE_OPENAI_DEPLOYMENT="model-router"
+
+# Configuration files
+readonly DEPLOYMENT_AND_SERVICES_YAML="${SCRIPT_DIR}/azure-playground-deployment-and-services.yaml"
+
+#---------------------------------------------#
+# Logging Functions
+#---------------------------------------------#
 info()  { echo -e "\033[1;34m[INFO]\033[0m $*"; }
 warn()  { echo -e "\033[1;33m[WARN]\033[0m $*"; }
 error() { echo -e "\033[1;31m[ERROR]\033[0m $*" >&2; }
 
-info "Starting Azure Playground Deployment Script..."
+#---------------------------------------------#
+# Usage Function
+#---------------------------------------------#
+usage() {
+    cat << EOF
+Usage: $0 [OPTIONS]
 
-# Check if this is MacOS
-if [[ "$(uname -s)" != "Darwin" ]]; then
-    error "This script is intended to run on macOS only."
+OPTIONS:
+    --run <section>   Run only the specified section: prereq, config, build, deploy, run
+    --all             Run all sections in order
+    -h, --help        Show this help message
+
+EXAMPLES:
+    $0 --all                    # Run complete deployment
+    $0 --run prereq             # Check prerequisites only
+    $0 --run build              # Build and push images only
+
+EOF
     exit 1
-fi
+}
 
-# Prerequisite check function
+#---------------------------------------------#
+# Utility Functions
+#---------------------------------------------#
 require_cmd() {
-    if ! command -v "$1" &>/dev/null; then
-        if [[ -n "${2:-}" ]]; then
-            info "$1 not found. Installing $1..."
-            brew install "$2"
+    local cmd="$1"
+    local brew_package="${2:-}"
+    local error_msg="${3:-}"
+    
+    if ! command -v "$cmd" &>/dev/null; then
+        if [[ -n "$brew_package" ]]; then
+            info "$cmd not found. Installing $cmd..."
+            brew install "$brew_package"
         else
-            error "$1 not found. $3"
+            error "$cmd not found. $error_msg"
             exit 1
         fi
     else
-        info "$1 is already installed."
+        info "$cmd is already installed."
+    fi
+}
+
+check_macos() {
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        error "This script is intended to run on macOS only."
+        exit 1
     fi
 }
 
 #---------------------------------------------#
-# Check prerequisites
+# SECTION: Prerequisites
 #---------------------------------------------#
-info "Checking prerequisites..."
-require_cmd brew "" "Please install Homebrew first: https://brew.sh/"
-require_cmd az azure-cli
-require_cmd unzip unzip
-require_cmd helm helm
-require_cmd docker "" "Please install Docker Desktop for Mac: https://www.docker.com/products/docker-desktop/"
-require_cmd kubectl kubectl
-
-# Azure authentication
-info "Authenticating with Azure..."
-az login
-
-#---------------------------------------------#
-# Configuration variables
-#---------------------------------------------#
-PROJECT_TAG="azure-playground"
-IMAGE_NAME="azure-playground"
-TAG="v1"
-CONFIGMAP_YAML="scripts/configmap.yml"
-DEPLOY_YAML="scripts/deployment.yml"
-NAMESPACE="default"
-AZURE_OPENAI_MODEL="model-router"
-AZURE_OPENAI_DEPLOYMENT="model-router"
+prereq_section() {
+    info "Checking prerequisites..."
+    
+    check_macos
+    
+    require_cmd brew "" "Please install Homebrew first: https://brew.sh/"
+    require_cmd az azure-cli
+    require_cmd unzip unzip
+    require_cmd helm helm
+    require_cmd docker "" "Please install Docker Desktop for Mac: https://www.docker.com/products/docker-desktop/"
+    require_cmd kubectl kubectl
+    require_cmd npm npm
+    
+    info "All prerequisites satisfied."
+}
 
 #---------------------------------------------#
-# Retrieve Azure resources
+# SECTION: Configuration
 #---------------------------------------------#
-info "Retrieving Azure resource group with tag: ${PROJECT_TAG}..."
-AZURE_RG_NAME=$(az group list --tag project="${PROJECT_TAG}" --query "[0].name" -o tsv)
-if [[ -z "$AZURE_RG_NAME" ]]; then
-    error "Azure resource group with tag \"${PROJECT_TAG}\" not found."
-    exit 1
-fi
-info "Resource group found: $AZURE_RG_NAME"
-
-AKS_RG_NAME=$(az group list --tag aks-managed-cluster-rg="${AZURE_RG_NAME}" --query "[0].name" -o tsv)
-if [[ -z "$AKS_RG_NAME" ]]; then
-    error "AKS resource group with tag \"aks-managed-cluster-rg=${AZURE_RG_NAME}\" not found."
-    exit 1
-fi
-info "AKS resource group found: $AKS_RG_NAME"
-
-UNIQUE_ID=$(echo "$AZURE_RG_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]' | tail -c 4)
-if [[ -z "$UNIQUE_ID" ]]; then
-    error "Failed to derive UNIQUE_ID from resource group name."
-    exit 1
-fi
-info "Derived UNIQUE_ID: $UNIQUE_ID"
-
-AZURE_OPENAI_NAME=$(az cognitiveservices account list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
-AZURE_OPENAI_ENDPOINT=$(az cognitiveservices account show --resource-group "${AZURE_RG_NAME}" --name "${AZURE_OPENAI_NAME}" --query "properties.endpoint" -o tsv)
-if [[ -z "$AZURE_OPENAI_NAME" || -z "$AZURE_OPENAI_ENDPOINT" ]]; then
-    error "Could not find Azure OpenAI resource in resource group $AZURE_RG_NAME."
-    exit 1
-fi
-info "Found Azure OpenAI resource: $AZURE_OPENAI_NAME (Endpoint: $AZURE_OPENAI_ENDPOINT)"
-
-info "Retrieving AKS cluster in resource group: $AZURE_RG_NAME..."
-AKS_CLUSTER_NAME=$(az aks list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
-if [[ -z "$AKS_CLUSTER_NAME" ]]; then
-    error "AKS cluster not found in resource group $AZURE_RG_NAME."
-    exit 1
-fi
-info "AKS cluster found: $AKS_CLUSTER_NAME"
-
-info "Retrieving Azure Container Registry in resource group: $AZURE_RG_NAME..."
-ACR_NAME=$(az acr list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
-if [[ -z "$ACR_NAME" ]]; then
-    error "Azure Container Registry not found in resource group $AZURE_RG_NAME."
-    exit 1
-fi
-info "Container Registry found: $ACR_NAME"
+config_section() {
+    info "Starting configuration..."
+    
+    # Azure authentication
+    info "Authenticating with Azure..."
+    az login
+    
+    # Retrieve resource groups
+    info "Retrieving Azure resource group with tag: ${PROJECT_TAG}..."
+    AZURE_RG_NAME=$(az group list --tag project="${PROJECT_TAG}" --query "[0].name" -o tsv)
+    [[ -z "$AZURE_RG_NAME" ]] && { error "Azure resource group with tag \"${PROJECT_TAG}\" not found."; exit 1; }
+    info "Resource group found: $AZURE_RG_NAME"
+    
+    AKS_RG_NAME=$(az group list --tag aks-managed-cluster-rg="${AZURE_RG_NAME}" --query "[0].name" -o tsv)
+    [[ -z "$AKS_RG_NAME" ]] && { error "AKS resource group not found."; exit 1; }
+    info "AKS resource group found: $AKS_RG_NAME"
+    
+    # Derive unique ID
+    UNIQUE_ID=$(echo "$AZURE_RG_NAME" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]' | tail -c 4)
+    [[ -z "$UNIQUE_ID" ]] && { error "Failed to derive UNIQUE_ID."; exit 1; }
+    info "Derived UNIQUE_ID: $UNIQUE_ID"
+    
+    # Azure OpenAI configuration
+    AZURE_OPENAI_NAME=$(az cognitiveservices account list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
+    AZURE_OPENAI_ENDPOINT=$(az cognitiveservices account show --resource-group "${AZURE_RG_NAME}" --name "${AZURE_OPENAI_NAME}" --query "properties.endpoint" -o tsv)
+    [[ -z "$AZURE_OPENAI_NAME" || -z "$AZURE_OPENAI_ENDPOINT" ]] && { error "Azure OpenAI resource not found."; exit 1; }
+    info "Azure OpenAI: $AZURE_OPENAI_NAME (Endpoint: $AZURE_OPENAI_ENDPOINT)"
+    
+    # AKS cluster
+    AKS_CLUSTER_NAME=$(az aks list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
+    [[ -z "$AKS_CLUSTER_NAME" ]] && { error "AKS cluster not found."; exit 1; }
+    info "AKS cluster: $AKS_CLUSTER_NAME"
+    
+    # Container registry
+    ACR_NAME=$(az acr list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
+    [[ -z "$ACR_NAME" ]] && { error "Azure Container Registry not found."; exit 1; }
+    info "Container Registry: $ACR_NAME"
+    
+    # Export variables for subsequent sections
+    export AZURE_RG_NAME AKS_RG_NAME UNIQUE_ID AZURE_OPENAI_NAME AZURE_OPENAI_ENDPOINT AKS_CLUSTER_NAME ACR_NAME
+    
+    info "Configuration completed successfully."
+}
 
 #---------------------------------------------#
-# Prepare Docker image and push to Azure Container Registry
+# SECTION: Build
 #---------------------------------------------#
-info "Logging in to Azure Container Registry..."
-az acr login --name "${ACR_NAME}"
-
-LOGIN_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer --output tsv)
-IMAGE_FULL_NAME="${LOGIN_SERVER}/${IMAGE_NAME}:${TAG}"
-
-info "Building Docker image for platforms linux/amd64 and linux/arm64..."
-docker buildx build -t "${IMAGE_FULL_NAME}" --platform linux/amd64,linux/arm64 -f scripts/Dockerfile .
-
-info "Pushing Docker image to Azure Container Registry..."
-docker push "${IMAGE_FULL_NAME}"
-
-# Connect to AKS cluster
-info "Connecting to AKS cluster..."
-az aks get-credentials --resource-group "$AZURE_RG_NAME" --name "${AKS_CLUSTER_NAME}" --overwrite-existing
-
-info "Verifying Kubernetes nodes..."
-kubectl get nodes
-
-#---------------------------------------------#
-# Set up IAM roles and permissions
-#---------------------------------------------#
-info "Attaching Azure Container Registry to AKS cluster..."
-set +e
-az aks update --name "${AKS_CLUSTER_NAME}" --resource-group "${AZURE_RG_NAME}" --attach-acr "${ACR_NAME}" &>/dev/null
-set -e
-
-info "Setting up Kubernetes namespace..."
-if kubectl get namespace "${NAMESPACE}" &> /dev/null; then
-    info "Namespace '${NAMESPACE}' already exists."
-else
-    info "Creating namespace '${NAMESPACE}'..."
-    kubectl create namespace "${NAMESPACE}"
-fi
-
-info "Setting up Kubernetes RBAC for Azure OpenAI..."
-
-USER_ASSIGNED_IDENTITY="aks-aks-${UNIQUE_ID}-agentpool"
-if az identity show --name "${USER_ASSIGNED_IDENTITY}" --resource-group "${AKS_RG_NAME}" &>/dev/null; then
-    info "User-assigned managed identity '${USER_ASSIGNED_IDENTITY}' exists."
-else
-    error "User-assigned managed identity '${USER_ASSIGNED_IDENTITY}' does not exist in resource group '${AKS_RG_NAME}'."
-    error "Please create the managed identity before proceeding."
-    exit 1
-fi
-
-info "Retrieving user-assigned managed identity principal ID..."
-USER_ASSIGNED_IDENTITY_PID=$(az identity show --name "$USER_ASSIGNED_IDENTITY" --resource-group "$AKS_RG_NAME" --query principalId --output tsv)
-if [[ -z "$USER_ASSIGNED_IDENTITY_PID" ]]; then
-    error "Failed to retrieve principal ID for user-assigned managed identity '${USER_ASSIGNED_IDENTITY}'."
-    exit 1
-else 
-    info "User-assigned managed identity principal ID: $USER_ASSIGNED_IDENTITY_PID" 
-fi
-
-info "Retrieving Azure OpenAI resource ID..."
-AZURE_OPENAI_ID=$(az cognitiveservices account show --resource-group "$AZURE_RG_NAME" --name "$AZURE_OPENAI_NAME" --query id -o tsv)
-if [[ -z "$AZURE_OPENAI_ID" ]]; then
-    error "Failed to retrieve Azure OpenAI resource ID."
-    exit 1
-else 
-    info "Azure OpenAI resource ID: $AZURE_OPENAI_ID"
-fi
-
-info "Assigning role 'Cognitive Services User' to user-assigned managed identity..."
-az role assignment create --assignee "$USER_ASSIGNED_IDENTITY_PID" --role "Cognitive Services User" --scope "$AZURE_OPENAI_ID"
+build_section() {
+    info "Starting build process..."
+    
+    # Get ACR login server
+    LOGIN_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer --output tsv)
+    FRONTEND_IMAGE_FULL_NAME="${LOGIN_SERVER}/${FRONTEND_IMAGE_NAME}:${TAG}"
+    LLM_SERVICE_IMAGE_FULL_NAME="${LOGIN_SERVER}/${LLM_SERVICE_IMAGE_NAME}:${TAG}"
+    
+    # ACR login
+    info "Logging in to Azure Container Registry..."
+    az acr login --name "${ACR_NAME}"
+    
+    # Build frontend
+    info "Building frontend Docker image..."
+    cd "${ROOT_DIR}/app/frontend" || exit 1
+    unset VITE_LLM_SERVICE_URL
+    npm run build || { error "npm build failed"; exit 1; }
+    docker buildx build -t "${FRONTEND_IMAGE_FULL_NAME}" --platform linux/amd64,linux/arm64 -f Dockerfile .
+    
+    # Build LLM service
+    info "Building LLM service Docker image..."
+    cd "${ROOT_DIR}/app/llm-service" || exit 1
+    docker buildx build -t "${LLM_SERVICE_IMAGE_FULL_NAME}" --platform linux/amd64,linux/arm64 -f Dockerfile .
+    
+    # Push images
+    info "Pushing images to Azure Container Registry..."
+    docker push "${FRONTEND_IMAGE_FULL_NAME}"
+    docker push "${LLM_SERVICE_IMAGE_FULL_NAME}"
+    
+    export FRONTEND_IMAGE_FULL_NAME LLM_SERVICE_IMAGE_FULL_NAME
+    info "Build and push completed successfully."
+}
 
 #---------------------------------------------#
-# Deploy the application
+# SECTION: Deploy
 #---------------------------------------------#
-info "Deploying application to AKS cluster..."
-
-yq "(.data.AZURE_OPENAI_ENDPOINT) |= \"$AZURE_OPENAI_ENDPOINT\"" "$CONFIGMAP_YAML" | kubectl apply -n "${NAMESPACE}" -f -
-
-info "Applying deployment configuration..."
-yq "(.spec.template.spec.containers[0].image) |= \"$IMAGE_FULL_NAME\"" "$DEPLOY_YAML" | kubectl apply -n "${NAMESPACE}" -f -
-
-kubectl apply -n "${NAMESPACE}" -f scripts/service.yml
-
-info "Deployment initiated successfully."
-
-info "Checking the status of the pods in namespace '${NAMESPACE}'..."
-kubectl get pods -n "${NAMESPACE}"
-
-info "Waiting for the pod to be ready..."
-while true; do
-    POD_STATUS=$(kubectl get pods -n "${NAMESPACE}" -o jsonpath='{.items[0].status.phase}')
-    if [[ "$POD_STATUS" == "Running" ]]; then
-        info "Pod is running."
-        break
-    elif [[ "$POD_STATUS" == "Pending" ]]; then
-        info "Pod is pending, waiting for it to be ready..."
-    else
-        error "Pod is in an unexpected state: $POD_STATUS"
+deploy_section() {
+    info "Starting deployment setup..."
+    
+    # AKS credentials
+    info "Connecting to AKS cluster..."
+    az aks get-credentials --resource-group "$AZURE_RG_NAME" --name "${AKS_CLUSTER_NAME}" --overwrite-existing
+    
+    # Verify connection
+    info "Verifying Kubernetes nodes..."
+    kubectl get nodes
+    
+    # Attach ACR to AKS
+    info "Attaching Azure Container Registry to AKS cluster..."
+    az aks update --name "${AKS_CLUSTER_NAME}" --resource-group "${AZURE_RG_NAME}" --attach-acr "${ACR_NAME}" &>/dev/null || true
+    
+    # Setup namespace
+    info "Setting up Kubernetes namespace..."
+    kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+    
+    # Setup RBAC
+    info "Setting up Kubernetes RBAC for Azure OpenAI..."
+    USER_ASSIGNED_IDENTITY="aks-aks-${UNIQUE_ID}-agentpool"
+    
+    if ! az identity show --name "${USER_ASSIGNED_IDENTITY}" --resource-group "${AKS_RG_NAME}" &>/dev/null; then
+        error "User-assigned managed identity '${USER_ASSIGNED_IDENTITY}' not found."
         exit 1
     fi
-    sleep 5
-done
+    
+    # Get identity principal ID
+    USER_ASSIGNED_IDENTITY_PID=$(az identity show --name "$USER_ASSIGNED_IDENTITY" --resource-group "$AKS_RG_NAME" --query principalId --output tsv)
+    [[ -z "$USER_ASSIGNED_IDENTITY_PID" ]] && { error "Failed to retrieve principal ID."; exit 1; }
+    info "User-assigned managed identity principal ID: $USER_ASSIGNED_IDENTITY_PID"
+    
+    # Get Azure OpenAI resource ID
+    AZURE_OPENAI_ID=$(az cognitiveservices account show --resource-group "$AZURE_RG_NAME" --name "$AZURE_OPENAI_NAME" --query id -o tsv)
+    [[ -z "$AZURE_OPENAI_ID" ]] && { error "Failed to retrieve Azure OpenAI resource ID."; exit 1; }
+    info "Azure OpenAI resource ID: $AZURE_OPENAI_ID"
+    
+    # Assign role
+    info "Assigning 'Cognitive Services User' role..."
+    az role assignment create --assignee "$USER_ASSIGNED_IDENTITY_PID" --role "Cognitive Services User" --scope "$AZURE_OPENAI_ID"
+    
+    info "Deployment setup completed."
+}
 
-info "Retrieving external IP of the service..."
-EXTERNAL_IP=""
-while [[ -z "$EXTERNAL_IP" ]]; do
-    sleep 5
-    EXTERNAL_IP=$(kubectl get svc -n "${NAMESPACE}" azure-playground -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    if [[ -z "$EXTERNAL_IP" ]]; then
-        info "Waiting for external IP..."
+#---------------------------------------------#
+# SECTION: Run
+#---------------------------------------------#
+run_section() {
+    info "Deploying application to AKS cluster..."
+    
+    cd "${ROOT_DIR}" || exit 1
+    
+    # Generate deployment file
+    local timestamp=$(date +"%Y%m%d%H%M%S")
+    local deploy_yaml="${SCRIPT_DIR}/deployment-azure-playground-${timestamp}.yaml"
+    
+    sed -e "s|<AZURE_OPENAI_ENDPOINT>|$AZURE_OPENAI_ENDPOINT|g" \
+        -e "s|<AZURE_PLAYGROUND_LLM_SERVICE_IMAGE>|$LLM_SERVICE_IMAGE_FULL_NAME|g" \
+        -e "s|<AZURE_PLAYGROUND_FRONTEND_IMAGE>|$FRONTEND_IMAGE_FULL_NAME|g" \
+        "$DEPLOYMENT_AND_SERVICES_YAML" > "$deploy_yaml"
+    
+    # Apply deployment
+    kubectl apply -n "${NAMESPACE}" -f "$deploy_yaml"
+    info "Deployment initiated successfully."
+    
+    # Monitor deployment
+    info "Waiting for all pods to be ready..."
+    kubectl wait --for=condition=ready pod -l app=azure-playground-frontend -n "${NAMESPACE}" --timeout=300s
+    kubectl wait --for=condition=ready pod -l app=azure-playground-llm-service -n "${NAMESPACE}" --timeout=300s
+    
+    # Get external IP
+    info "Retrieving external IP..."
+    local external_ip=""
+    local max_attempts=60
+    local attempt=0
+    
+    while [[ -z "$external_ip" && $attempt -lt $max_attempts ]]; do
+        external_ip=$(kubectl get svc -n "${NAMESPACE}" azure-playground-frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+        if [[ -z "$external_ip" ]]; then
+            info "Waiting for external IP... (attempt $((++attempt))/$max_attempts)"
+            sleep 5
+        fi
+    done
+    
+    if [[ -z "$external_ip" ]]; then
+        error "Failed to retrieve external IP after $max_attempts attempts."
+        exit 1
     fi
-done
+    
+    info "Service is available at: http://$external_ip:80"
+    info "Deployment completed successfully!"
+}
 
-info "Service is available at: http://$EXTERNAL_IP:5001. Have fun!"
+#---------------------------------------------#
+# Main Execution
+#---------------------------------------------#
+main() {
+    local run_section=""
+    local run_all=0
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --run)
+                shift
+                [[ $# -eq 0 ]] && usage
+                run_section="$1"
+                shift
+                ;;
+            --all)
+                run_all=1
+                shift
+                ;;
+            -h|--help)
+                usage
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    done
+    
+    # Validate arguments
+    if [[ -z "$run_section" && "$run_all" -ne 1 ]]; then
+        usage
+    fi
+    
+    info "Starting Azure Playground Deployment Script..."
+    
+    # Execute sections
+    if [[ "$run_all" -eq 1 ]]; then
+        prereq_section
+        config_section
+        build_section
+        deploy_section
+        run_section
+    else
+        case "$run_section" in
+            prereq)
+                prereq_section
+                ;;
+            config)
+                config_section
+                ;;
+            build)
+                config_section
+                build_section
+                ;;
+            deploy)
+                config_section
+                deploy_section
+                ;;
+            run)
+                config_section
+                build_section
+                deploy_section
+                run_section
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    fi
+}
+
+# Run main function
+main "$@"

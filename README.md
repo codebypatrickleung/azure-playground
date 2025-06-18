@@ -21,7 +21,7 @@ The Dev/Test Standard for AKS pattern module also provisions an Azure Container 
 
 ## Application
 
-The current application is a simple Flask-based Python app deployed on the AKS cluster and is intend to provide a solid foundation for developing large language model (LLM) applications on Azure. It serves as a starting point for building more advanced solutions. The LLM model utilizes the [model router](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/model-router) (introduced May 2025), enabling the app to route requests to different models based on the request type. This seems interesting as we might be able to combine different models for different tasks.
+The framework I have selected here is Vue.js for the frontend and Python FastAPI for the backend. The LLM model utilizes the [model router](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/model-router) (introduced May 2025), enabling the app to route requests to different models based on the request type. This seems interesting as we might be able to combine different models for different tasks.
 
 ## Getting Started
 

@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: azure-playground-config
-data:
-  AZURE_OPENAI_ENDPOINT: ""
