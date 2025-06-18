@@ -2,7 +2,7 @@
 
 This repository serves as my own sandbox for exploring and testing Azure services. It is intended for experimenting with new features, learning about Azure, and building applications that leverage Azure resources. 
 
-## Azure Infrastructure
+## Infrastructure
 
 All the Azure infrastructure is provisioned using Terraform, so that I can easily tear down the infrastructure when I'm done testing. The Terraform code in this repository provisions the following Azure services:
 
@@ -25,13 +25,39 @@ The framework I have selected here is Vue.js for the frontend and Python FastAPI
 
 The LLM model utilizes the [model router](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/model-router) (introduced May 2025), enabling the app to route requests to different models based on the request type. This seems interesting as we might be able to combine different models for different tasks.
 
+## CI / CD
+
+Due to emphermal nature of the infrastructure, I have not set up a CI/CD pipeline for this repository. The infrastructure is provisioned and destroyed as needed, so there is no need for a CI/CD pipeline to manage the deployment of the application. I am deploying the application manually using a script. The script is written for MacOS, but it can be easily adapted for other operating systems. The script is located in the `script` directory and is named `deploy.sh`. The script builds the Docker image for the application for both AMD and ARM architectures, pushes it to the Azure Container Registry (ACR), and deploys it to the Azure Kubernetes Service (AKS) cluster. 
+
+You can run the scripts by executing the following commands in your terminal:
+
+```zsh
+cd script
+./deploy.sh --all
+```
+
+or if you just want run specific parts of the script, you can use the following commands: 
+
+```zsh
+cd script
+./deploy.sh --run <section>   Run only the specified section: prereq, config, build, deploy, run
+```
+
+## Security
+
+This repository is intended for testing and learning purposes, and it does not implement all the security measures that you would typically use in a production application. A couple of security measures are implemented in this repository to ensure that the Azure resources are secure and that sensitive information is not exposed:
+
+- Ephemeral environment for testing purposes, meaning that the infrastructure is provisioned and destroyed as needed, reducing the risk of leaving resources running unnecessarily.  
+- Using Entra ID for authentication and authorization, which provides a secure way to manage access to Azure resources.
+- Using managed identities for Azure resources to avoid hardcoding credentials.
+
 ## Getting Started
 
 1. Clone the repository.
 
 2. Deploy the infrastructure using Terraform:
 
-    ```bash
+    ```zsh
     cd infrastructure
     terraform init
     terraform apply -auto-approve
@@ -40,9 +66,9 @@ The LLM model utilizes the [model router](https://learn.microsoft.com/en-us/azur
 
     Note that the application deployment script is written for MacOS. If you are using a different operating system, you may need to adjust the script accordingly.
 
-    ```bash
+    ```zsh
     cd ..
-    ./script/deploy.sh
+    ./script/deploy.sh --all
     ```
 
     The script will authenticate with Azure, build the Docker image for the application, push it to the Azure Container Registry (ACR), add permissions for the AKS cluster to access OpenAI, and deploy the application to the AKS cluster. It will also create a Kubernetes service of type LoadBalancer to expose the application to the internet.
@@ -55,7 +81,7 @@ The LLM model utilizes the [model router](https://learn.microsoft.com/en-us/azur
 
 To tear down the infrastructure and remove all resources created by Terraform, run the following command in the `infrastructure` directory:
 
-```bash
+```zsh
 terraform destroy -auto-approve
 ```
 
