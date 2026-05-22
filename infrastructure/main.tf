@@ -25,7 +25,7 @@ resource "azurerm_resource_group" "this" {
 
 module "naming" {
   source  = "Azure/naming/azurerm"
-  version = "0.4.0"
+  version = "0.4.3"
 }
 
 module "avm-ptn-aks-dev" {
@@ -41,12 +41,12 @@ module "avm-ptn-aks-dev" {
 
 module "avm-res-cognitiveservices-account" {
   source  = "Azure/avm-res-cognitiveservices-account/azurerm"
-  version = "0.7.1"
+  version = "0.11.0"
 
-  kind                = "OpenAI"
-  location            = var.location
-  name                = module.naming.cognitive_account.name_unique
-  resource_group_name = azurerm_resource_group.this.name
+  kind      = "OpenAI"
+  location  = var.location
+  name      = module.naming.cognitive_account.name_unique
+  parent_id = azurerm_resource_group.this.id
   enable_telemetry    = var.enable_telemetry
   sku_name            = "S0"
   tags                = var.tags
