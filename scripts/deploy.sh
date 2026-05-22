@@ -96,7 +96,7 @@ prereq_section() {
     require_cmd docker "" "Please install Docker Desktop for Mac: https://www.docker.com/products/docker-desktop/"
     require_cmd kubectl kubectl
     require_cmd npm npm
-    require_cmd flux flux
+    require_cmd flux fluxcd/tap/flux
     
     info "All prerequisites satisfied."
 }
