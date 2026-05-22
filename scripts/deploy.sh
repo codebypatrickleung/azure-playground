@@ -13,12 +13,16 @@ readonly PROJECT_TAG="azure-playground"
 readonly FRONTEND_IMAGE_NAME="azure-playground-frontend"
 readonly LLM_SERVICE_IMAGE_NAME="azure-playground-llm-service"
 readonly TAG="latest"
-readonly NAMESPACE="default"
+readonly NAMESPACE="azure-playground"
 readonly AZURE_OPENAI_MODEL="model-router"
 readonly AZURE_OPENAI_DEPLOYMENT="model-router"
 
 # Helm chart
 readonly CHART_DIR="${ROOT_DIR}/charts/azure-playground"
+
+# Flux bootstrap settings
+readonly GITHUB_REPO="azure-playground"
+readonly FLUX_PATH="clusters/dev"
 
 #---------------------------------------------#
 # Logging Functions
@@ -35,7 +39,7 @@ usage() {
 Usage: $0 [OPTIONS]
 
 OPTIONS:
-    --run <section>   Run only the specified section: prereq, config, build, deploy, run
+    --run <section>   Run only the specified section: prereq, config, build, deploy, bootstrap, run
     --all             Run all sections in order
     -h, --help        Show this help message
 
@@ -43,6 +47,7 @@ EXAMPLES:
     $0 --all                    # Run complete deployment
     $0 --run prereq             # Check prerequisites only
     $0 --run build              # Build and push images only
+    $0 --run bootstrap          # Bootstrap Flux into AKS (one-time)
 
 EOF
     exit 1
@@ -91,6 +96,7 @@ prereq_section() {
     require_cmd docker "" "Please install Docker Desktop for Mac: https://www.docker.com/products/docker-desktop/"
     require_cmd kubectl kubectl
     require_cmd npm npm
+    require_cmd flux flux
     
     info "All prerequisites satisfied."
 }
@@ -228,24 +234,73 @@ deploy_section() {
 }
 
 #---------------------------------------------#
+# SECTION: Bootstrap
+#---------------------------------------------#
+bootstrap_section() {
+    info "Bootstrapping Flux into AKS cluster..."
+
+    # Validate required environment variables
+    [[ -z "${GITHUB_TOKEN:-}" ]] && { error "GITHUB_TOKEN environment variable is not set. Create a token at https://github.com/settings/tokens with repo scope."; exit 1; }
+    [[ -z "${GITHUB_USERNAME:-}" ]] && { error "GITHUB_USERNAME environment variable is not set."; exit 1; }
+
+    # Skip if Flux is already installed
+    if flux check --pre &>/dev/null && kubectl get namespace flux-system &>/dev/null; then
+        info "Flux is already bootstrapped. Skipping."
+        return 0
+    fi
+
+    flux bootstrap github \
+        --owner="${GITHUB_USERNAME}" \
+        --repository="${GITHUB_REPO}" \
+        --branch=main \
+        --path="${FLUX_PATH}" \
+        --personal \
+        --token-auth
+
+    info "Flux bootstrapped successfully."
+    info "Flux will now reconcile cluster state from: ${FLUX_PATH}"
+}
+
+#---------------------------------------------#
 # SECTION: Run
 #---------------------------------------------#
 run_section() {
-    info "Deploying application to AKS cluster via Helm..."
+    info "Deploying application via Flux GitOps..."
 
     cd "${ROOT_DIR}" || exit 1
 
-    helm upgrade --install azure-playground "${CHART_DIR}" \
+    # Create the values secret for Flux HelmRelease
+    # Dynamic values (image repos, OpenAI endpoint) are kept out of Git
+    info "Creating Helm values secret for Flux..."
+    kubectl create secret generic azure-playground-values \
         --namespace "${NAMESPACE}" \
-        --set frontend.image.repository="${LOGIN_SERVER}/${FRONTEND_IMAGE_NAME}" \
-        --set frontend.image.tag="${TAG}" \
-        --set llmService.image.repository="${LOGIN_SERVER}/${LLM_SERVICE_IMAGE_NAME}" \
-        --set llmService.image.tag="${TAG}" \
-        --set llmService.azureOpenAI.endpoint="${AZURE_OPENAI_ENDPOINT}" \
-        --wait \
-        --timeout 300s
+        --from-literal=values.yaml="$(cat <<EOF
+frontend:
+  image:
+    repository: ${LOGIN_SERVER}/${FRONTEND_IMAGE_NAME}
+    tag: "${TAG}"
+llmService:
+  image:
+    repository: ${LOGIN_SERVER}/${LLM_SERVICE_IMAGE_NAME}
+    tag: "${TAG}"
+  azureOpenAI:
+    endpoint: "${AZURE_OPENAI_ENDPOINT}"
+EOF
+)" \
+        --dry-run=client -o yaml | kubectl apply -f -
 
-    info "Helm release deployed successfully."
+    info "Values secret created."
+
+    # Trigger Flux to pull latest Git state and reconcile
+    info "Triggering Flux reconciliation..."
+    flux reconcile kustomization apps --with-source
+
+    # Wait for the HelmRelease to become ready
+    info "Waiting for HelmRelease to be ready..."
+    kubectl wait helmrelease/azure-playground \
+        --namespace "${NAMESPACE}" \
+        --for=condition=ready \
+        --timeout=300s
 
     # Get external IP
     info "Retrieving external IP..."
@@ -312,6 +367,7 @@ main() {
         config_section
         build_section
         deploy_section
+        bootstrap_section
         run_section
     else
         case "$run_section" in
@@ -329,10 +385,16 @@ main() {
                 config_section
                 deploy_section
                 ;;
+            bootstrap)
+                config_section
+                deploy_section
+                bootstrap_section
+                ;;
             run)
                 config_section
                 build_section
                 deploy_section
+                bootstrap_section
                 run_section
                 ;;
             *)

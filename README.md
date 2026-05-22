@@ -33,6 +33,8 @@ You can run the scripts by executing the following commands in your terminal:
 
 ```zsh
 cd script
+export GITHUB_TOKEN=<your-github-pat> 
+export GITHUB_USERNAME=<your-username>
 ./deploy.sh --all
 ```
 
@@ -40,6 +42,8 @@ or if you just want run specific parts of the script, you can use the following 
 
 ```zsh
 cd script
+export GITHUB_TOKEN=<your-github-pat> 
+export GITHUB_USERNAME=<your-username>
 ./deploy.sh --run <section>   Run only the specified section: prereq, config, build, deploy, run
 ```
 
@@ -82,6 +86,7 @@ This repository is intended for testing and learning purposes, and it does not i
 To tear down the infrastructure and remove all resources created by Terraform, run the following command in the `infrastructure` directory:
 
 ```zsh
+helm uninstall azure-playground --namespace default
 terraform destroy -auto-approve
 ```
 
