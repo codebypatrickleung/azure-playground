@@ -1,0 +1,6 @@
+apiVersion: v2
+name: azure-playground
+description: Azure Playground - Vue.js frontend and Python FastAPI LLM service on AKS
+type: application
+version: 0.1.0
+appVersion: "latest"

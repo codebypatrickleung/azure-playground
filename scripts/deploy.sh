@@ -17,8 +17,8 @@ readonly NAMESPACE="default"
 readonly AZURE_OPENAI_MODEL="model-router"
 readonly AZURE_OPENAI_DEPLOYMENT="model-router"
 
-# Configuration files
-readonly DEPLOYMENT_AND_SERVICES_YAML="${SCRIPT_DIR}/azure-playground-deployment-and-services.yaml"
+# Helm chart
+readonly CHART_DIR="${ROOT_DIR}/charts/azure-playground"
 
 #---------------------------------------------#
 # Logging Functions
@@ -161,6 +161,7 @@ build_section() {
     info "Building frontend Docker image..."
     cd "${ROOT_DIR}/app/frontend" || exit 1
     unset VITE_LLM_SERVICE_URL
+    npm ci || { error "npm install failed"; exit 1; }
     npm run build || { error "npm build failed"; exit 1; }
     docker buildx build -t "${FRONTEND_IMAGE_FULL_NAME}" --platform linux/amd64,linux/arm64 -f Dockerfile .
     
@@ -174,7 +175,7 @@ build_section() {
     docker push "${FRONTEND_IMAGE_FULL_NAME}"
     docker push "${LLM_SERVICE_IMAGE_FULL_NAME}"
     
-    export FRONTEND_IMAGE_FULL_NAME LLM_SERVICE_IMAGE_FULL_NAME
+    export FRONTEND_IMAGE_FULL_NAME LLM_SERVICE_IMAGE_FULL_NAME LOGIN_SERVER
     info "Build and push completed successfully."
 }
 
@@ -230,34 +231,28 @@ deploy_section() {
 # SECTION: Run
 #---------------------------------------------#
 run_section() {
-    info "Deploying application to AKS cluster..."
-    
+    info "Deploying application to AKS cluster via Helm..."
+
     cd "${ROOT_DIR}" || exit 1
-    
-    # Generate deployment file
-    local timestamp=$(date +"%Y%m%d%H%M%S")
-    local deploy_yaml="${SCRIPT_DIR}/deployment-azure-playground-${timestamp}.yaml"
-    
-    sed -e "s|<AZURE_OPENAI_ENDPOINT>|$AZURE_OPENAI_ENDPOINT|g" \
-        -e "s|<AZURE_PLAYGROUND_LLM_SERVICE_IMAGE>|$LLM_SERVICE_IMAGE_FULL_NAME|g" \
-        -e "s|<AZURE_PLAYGROUND_FRONTEND_IMAGE>|$FRONTEND_IMAGE_FULL_NAME|g" \
-        "$DEPLOYMENT_AND_SERVICES_YAML" > "$deploy_yaml"
-    
-    # Apply deployment
-    kubectl apply -n "${NAMESPACE}" -f "$deploy_yaml"
-    info "Deployment initiated successfully."
-    
-    # Monitor deployment
-    info "Waiting for all pods to be ready..."
-    kubectl wait --for=condition=ready pod -l app=azure-playground-frontend -n "${NAMESPACE}" --timeout=300s
-    kubectl wait --for=condition=ready pod -l app=azure-playground-llm-service -n "${NAMESPACE}" --timeout=300s
-    
+
+    helm upgrade --install azure-playground "${CHART_DIR}" \
+        --namespace "${NAMESPACE}" \
+        --set frontend.image.repository="${LOGIN_SERVER}/${FRONTEND_IMAGE_NAME}" \
+        --set frontend.image.tag="${TAG}" \
+        --set llmService.image.repository="${LOGIN_SERVER}/${LLM_SERVICE_IMAGE_NAME}" \
+        --set llmService.image.tag="${TAG}" \
+        --set llmService.azureOpenAI.endpoint="${AZURE_OPENAI_ENDPOINT}" \
+        --wait \
+        --timeout 300s
+
+    info "Helm release deployed successfully."
+
     # Get external IP
     info "Retrieving external IP..."
     local external_ip=""
     local max_attempts=60
     local attempt=0
-    
+
     while [[ -z "$external_ip" && $attempt -lt $max_attempts ]]; do
         external_ip=$(kubectl get svc -n "${NAMESPACE}" azure-playground-frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
         if [[ -z "$external_ip" ]]; then
@@ -265,12 +260,12 @@ run_section() {
             sleep 5
         fi
     done
-    
+
     if [[ -z "$external_ip" ]]; then
         error "Failed to retrieve external IP after $max_attempts attempts."
         exit 1
     fi
-    
+
     info "Service is available at: http://$external_ip:80"
     info "Deployment completed successfully!"
 }

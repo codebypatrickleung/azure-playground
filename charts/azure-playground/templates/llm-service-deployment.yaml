@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "azure-playground.name" . }}-llm-service
+  labels:
+    {{- include "azure-playground.llmService.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.llmService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "azure-playground.llmService.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "azure-playground.llmService.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: llm-service
+          image: "{{ .Values.llmService.image.repository }}:{{ .Values.llmService.image.tag }}"
+          imagePullPolicy: {{ .Values.llmService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5001
+              protocol: TCP
+          env:
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "azure-playground.name" . }}-llm-service-config
+                  key: AZURE_OPENAI_ENDPOINT
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.llmService.resources | nindent 12 }}
