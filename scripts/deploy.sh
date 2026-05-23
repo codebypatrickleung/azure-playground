@@ -169,17 +169,12 @@ build_section() {
     unset VITE_LLM_SERVICE_URL
     npm ci || { error "npm install failed"; exit 1; }
     npm run build || { error "npm build failed"; exit 1; }
-    docker buildx build -t "${FRONTEND_IMAGE_FULL_NAME}" --platform linux/amd64,linux/arm64 -f Dockerfile .
-    
+    docker buildx build -t "${FRONTEND_IMAGE_FULL_NAME}" --platform linux/amd64 --push -f Dockerfile .
+
     # Build LLM service
     info "Building LLM service Docker image..."
     cd "${ROOT_DIR}/app/llm-service" || exit 1
-    docker buildx build -t "${LLM_SERVICE_IMAGE_FULL_NAME}" --platform linux/amd64,linux/arm64 -f Dockerfile .
-    
-    # Push images
-    info "Pushing images to Azure Container Registry..."
-    docker push "${FRONTEND_IMAGE_FULL_NAME}"
-    docker push "${LLM_SERVICE_IMAGE_FULL_NAME}"
+    docker buildx build -t "${LLM_SERVICE_IMAGE_FULL_NAME}" --platform linux/amd64 --push -f Dockerfile .
     
     export FRONTEND_IMAGE_FULL_NAME LLM_SERVICE_IMAGE_FULL_NAME LOGIN_SERVER
     info "Build and push completed successfully."
@@ -269,8 +264,11 @@ run_section() {
 
     cd "${ROOT_DIR}" || exit 1
 
+    # Validate required environment variables
+    [[ -z "${NEWS_API_KEY:-}" ]] && { error "NEWS_API_KEY environment variable is not set. Get a free key at https://newsapi.org"; exit 1; }
+
     # Create the values secret for Flux HelmRelease
-    # Dynamic values (image repos, OpenAI endpoint) are kept out of Git
+    # Dynamic values (image repos, OpenAI endpoint, API keys) are kept out of Git
     info "Creating Helm values secret for Flux..."
     kubectl create secret generic azure-playground-values \
         --namespace "${NAMESPACE}" \
@@ -285,6 +283,7 @@ llmService:
     tag: "${TAG}"
   azureOpenAI:
     endpoint: "${AZURE_OPENAI_ENDPOINT}"
+  newsApiKey: "${NEWS_API_KEY}"
 EOF
 )" \
         --dry-run=client -o yaml | kubectl apply -f -
