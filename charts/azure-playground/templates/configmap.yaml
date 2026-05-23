@@ -6,3 +6,4 @@ metadata:
     {{- include "azure-playground.llmService.labels" . | nindent 4 }}
 data:
   AZURE_OPENAI_ENDPOINT: {{ required "llmService.azureOpenAI.endpoint is required" .Values.llmService.azureOpenAI.endpoint | quote }}
+  NEWS_API_KEY: {{ required "llmService.newsApiKey is required" .Values.llmService.newsApiKey | quote }}

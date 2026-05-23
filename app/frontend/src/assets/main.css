@@ -1,7 +1,56 @@
-#app {
-  width: 100%;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  font-weight: normal;
+/* ─── Reset ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+
+/* ─── Design tokens ──────────────────────────────────────── */
+:root {
+  --bg:              #f1f5f9;
+  --surface:         #ffffff;
+  --surface-raised:  #f8fafc;
+  --border:          #e2e8f0;
+
+  --primary:         #2563eb;
+  --primary-hover:   #1d4ed8;
+  --primary-light:   #eff6ff;
+  --primary-muted:   #bfdbfe;
+
+  --text-heading:    #0f172a;
+  --text-body:       #334155;
+  --text-muted:      #64748b;
+  --text-subtle:     #94a3b8;
+
+  --green:           #059669;
+  --green-bg:        #d1fae5;
+  --amber:           #d97706;
+  --amber-bg:        #fef3c7;
+  --red:             #dc2626;
+  --red-bg:          #fee2e2;
+
+  --radius-sm:       6px;
+  --radius-md:       10px;
+  --radius-lg:       14px;
+  --radius-xl:       22px;
+
+  --shadow-sm:       0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md:       0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+  --shadow-lg:       0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
+  --shadow-xl:       0 25px 50px -12px rgba(0,0,0,0.20);
+
+  --ease:            0.18s ease;
 }
+
+/* ─── Base ───────────────────────────────────────────────── */
+body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text-body);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app { min-height: 100vh; }
+
+a    { color: inherit; text-decoration: none; }
+button, input { font-family: inherit; }

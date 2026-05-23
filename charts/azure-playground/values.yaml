@@ -26,6 +26,7 @@ llmService:
     port: 5001
   azureOpenAI:
     endpoint: ""
+  newsApiKey: ""
   resources:
     requests:
       cpu: 100m

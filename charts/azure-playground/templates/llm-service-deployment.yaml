@@ -28,6 +28,11 @@ spec:
                 configMapKeyRef:
                   name: {{ include "azure-playground.name" . }}-llm-service-config
                   key: AZURE_OPENAI_ENDPOINT
+            - name: NEWS_API_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "azure-playground.name" . }}-llm-service-config
+                  key: NEWS_API_KEY
           readinessProbe:
             httpGet:
               path: /health
