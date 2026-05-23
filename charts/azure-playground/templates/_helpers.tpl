@@ -33,15 +33,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/*
 LLM service labels
 */}}
-{{- define "azure-playground.llmService.labels" -}}
+{{- define "azure-playground.agentService.labels" -}}
 {{ include "azure-playground.labels" . }}
-app.kubernetes.io/name: {{ include "azure-playground.name" . }}-llm-service
+app.kubernetes.io/name: {{ include "azure-playground.name" . }}-agent-service
 {{- end }}
 
 {{/*
 LLM service selector labels
 */}}
-{{- define "azure-playground.llmService.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "azure-playground.name" . }}-llm-service
+{{- define "azure-playground.agentService.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "azure-playground.name" . }}-agent-service
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}

@@ -15,7 +15,7 @@ frontend:
       cpu: 200m
       memory: 128Mi
 
-llmService:
+agentService:
   replicaCount: 1
   image:
     repository: ""

@@ -20,13 +20,13 @@ log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 os.makedirs(log_dir, exist_ok=True)
 
 file_handler = RotatingFileHandler(
-    os.path.join(log_dir, "llm-service.log"),
+    os.path.join(log_dir, "agent-service.log"),
     maxBytes=10485760,
     backupCount=5,
 )
 file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
 logging.basicConfig(level=logging.INFO, handlers=[file_handler, logging.StreamHandler()])
-logger = logging.getLogger("llm-service")
+logger = logging.getLogger("agent-service")
 
 # ---------------------------------------------------------------------------
 # App

@@ -14,7 +14,7 @@ from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 from state import NewsState, Article
 
-logger = logging.getLogger("llm-service")
+logger = logging.getLogger("agent-service")
 
 CATEGORY_KEYWORDS = {
     "Cloud & Infrastructure": "cloud Azure AWS GCP infrastructure Terraform",

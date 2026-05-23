@@ -11,7 +11,7 @@ readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Image and deployment settings
 readonly PROJECT_TAG="azure-playground"
 readonly FRONTEND_IMAGE_NAME="azure-playground-frontend"
-readonly LLM_SERVICE_IMAGE_NAME="azure-playground-llm-service"
+readonly AGENT_SERVICE_IMAGE_NAME="azure-playground-agent-service"
 readonly TAG="latest"
 readonly NAMESPACE="azure-playground"
 readonly AZURE_OPENAI_MODEL="model-router"
@@ -157,7 +157,7 @@ build_section() {
     # Get ACR login server
     LOGIN_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer --output tsv)
     FRONTEND_IMAGE_FULL_NAME="${LOGIN_SERVER}/${FRONTEND_IMAGE_NAME}:${TAG}"
-    LLM_SERVICE_IMAGE_FULL_NAME="${LOGIN_SERVER}/${LLM_SERVICE_IMAGE_NAME}:${TAG}"
+    AGENT_SERVICE_IMAGE_FULL_NAME="${LOGIN_SERVER}/${AGENT_SERVICE_IMAGE_NAME}:${TAG}"
     
     # ACR login
     info "Logging in to Azure Container Registry..."
@@ -173,10 +173,10 @@ build_section() {
 
     # Build LLM service
     info "Building LLM service Docker image..."
-    cd "${ROOT_DIR}/app/llm-service" || exit 1
-    docker buildx build -t "${LLM_SERVICE_IMAGE_FULL_NAME}" --platform linux/amd64 --push -f Dockerfile .
+    cd "${ROOT_DIR}/app/agent-service" || exit 1
+    docker buildx build -t "${AGENT_SERVICE_IMAGE_FULL_NAME}" --platform linux/amd64 --push -f Dockerfile .
     
-    export FRONTEND_IMAGE_FULL_NAME LLM_SERVICE_IMAGE_FULL_NAME LOGIN_SERVER
+    export FRONTEND_IMAGE_FULL_NAME AGENT_SERVICE_IMAGE_FULL_NAME LOGIN_SERVER
     info "Build and push completed successfully."
 }
 
@@ -277,9 +277,9 @@ frontend:
   image:
     repository: ${LOGIN_SERVER}/${FRONTEND_IMAGE_NAME}
     tag: "${TAG}"
-llmService:
+agentService:
   image:
-    repository: ${LOGIN_SERVER}/${LLM_SERVICE_IMAGE_NAME}
+    repository: ${LOGIN_SERVER}/${AGENT_SERVICE_IMAGE_NAME}
     tag: "${TAG}"
   azureOpenAI:
     endpoint: "${AZURE_OPENAI_ENDPOINT}"

@@ -4,10 +4,10 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - llm-service
+      - agent-service
 
-  llm-service:
-    build: ./app/llm-service
+  agent-service:
+    build: ./app/agent-service
     ports:
       - "5001:5001"
     environment:

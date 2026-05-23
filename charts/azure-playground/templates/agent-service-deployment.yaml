@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "azure-playground.name" . }}-llm-service
+  name: {{ include "azure-playground.name" . }}-agent-service
   labels:
-    {{- include "azure-playground.llmService.labels" . | nindent 4 }}
+    {{- include "azure-playground.agentService.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.llmService.replicaCount }}
+  replicas: {{ .Values.agentService.replicaCount }}
   selector:
     matchLabels:
-      {{- include "azure-playground.llmService.selectorLabels" . | nindent 6 }}
+      {{- include "azure-playground.agentService.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "azure-playground.llmService.selectorLabels" . | nindent 8 }}
+        {{- include "azure-playground.agentService.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-        - name: llm-service
-          image: "{{ .Values.llmService.image.repository }}:{{ .Values.llmService.image.tag }}"
-          imagePullPolicy: {{ .Values.llmService.image.pullPolicy }}
+        - name: agent-service
+          image: "{{ .Values.agentService.image.repository }}:{{ .Values.agentService.image.tag }}"
+          imagePullPolicy: {{ .Values.agentService.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 5001
@@ -26,12 +26,12 @@ spec:
             - name: AZURE_OPENAI_ENDPOINT
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "azure-playground.name" . }}-llm-service-config
+                  name: {{ include "azure-playground.name" . }}-agent-service-config
                   key: AZURE_OPENAI_ENDPOINT
             - name: NEWS_API_KEY
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "azure-playground.name" . }}-llm-service-config
+                  name: {{ include "azure-playground.name" . }}-agent-service-config
                   key: NEWS_API_KEY
           readinessProbe:
             httpGet:
@@ -46,4 +46,4 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 30
           resources:
-            {{- toYaml .Values.llmService.resources | nindent 12 }}
+            {{- toYaml .Values.agentService.resources | nindent 12 }}

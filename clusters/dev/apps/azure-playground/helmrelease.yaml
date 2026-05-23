@@ -23,7 +23,7 @@ spec:
       service:
         type: LoadBalancer
         port: 80
-    llmService:
+    agentService:
       replicaCount: 1
       service:
         type: ClusterIP

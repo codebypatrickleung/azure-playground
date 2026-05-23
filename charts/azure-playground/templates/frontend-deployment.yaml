@@ -24,7 +24,7 @@ spec:
               protocol: TCP
           env:
             - name: VITE_LLM_SERVICE_URL
-              value: "http://{{ include "azure-playground.name" . }}-llm-service:{{ .Values.llmService.service.port }}"
+              value: "http://{{ include "azure-playground.name" . }}-agent-service:{{ .Values.agentService.service.port }}"
           readinessProbe:
             httpGet:
               path: /
