@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Explicitly list only the resources Flux should manage.
+# The flux-system/ directory is intentionally excluded — it is managed
+# by Terraform (azurerm_kubernetes_cluster_extension + azurerm_kubernetes_flux_configuration).
+resources:
+  - apps.yaml
