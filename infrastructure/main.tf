@@ -116,10 +116,6 @@ resource "azurerm_kubernetes_flux_configuration" "this" {
     path                       = "./clusters/dev"
     sync_interval_in_seconds   = 600
     retry_interval_in_seconds  = 60
-    # Disabled to prevent Flux from trying to prune the Flux controllers
-    # themselves, which were briefly in this Kustomization's inventory when
-    # gotk-components.yaml was still present. App-level pruning is handled
-    # by the apps Kustomization (prune: true in clusters/dev/apps.yaml).
     garbage_collection_enabled = false
   }
 

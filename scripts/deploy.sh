@@ -281,7 +281,7 @@ run_section() {
     # These are safe to store in a ConfigMap (not a Secret).
     info "Creating Helm values ConfigMap for Flux..."
     kubectl create configmap azure-playground-values \
-        --namespace "${NAMESPACE}" \
+        --namespace flux-system \
         --from-literal=values.yaml="$(cat <<EOF
 frontend:
   image:

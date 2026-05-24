@@ -2,9 +2,12 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: azure-playground
-  namespace: azure-playground
+  namespace: flux-system
 spec:
   interval: 5m
+  targetNamespace: azure-playground
+  install:
+    createNamespace: true
   chart:
     spec:
       chart: ./charts/azure-playground
