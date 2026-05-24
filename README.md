@@ -2,9 +2,9 @@
 
 This repository serves as my own sandbox for exploring and testing Azure services. It is intended for experimenting with new features, learning about Azure, and building applications that leverage Azure resources.
 
-## What it does at the moment (this might change as it is a playground!)
+## What it does at the moment
 
-As an architect, you sacrifice the time go into depth, to gain breadth across many technologies. The unknown unknowns are the most dangerous, you don't know what you don't know, and that can lead to costly mistakes. Most of the news sources I follow are general tech news, not exactly the kind of content I need to stay on top of my field. I want to be able to quickly scan the latest news, identify what's relevant to me, and then dive deeper into those topics.
+This might change over time as I experiment with different ideas, but the current focus is on building a personal assistant that helps me stay on top of the latest news and developments in the tech industry. As an architect, you sacrifice the time go into depth, to gain breadth across many technologies. The unknown unknowns are the most dangerous, you don't know what you don't know, and that can lead to costly mistakes. Most of the news sources I follow are general tech news, not exactly the kind of content I need to stay on top of my field. I want to be able to quickly scan the latest news, identify what's relevant to me, and then dive deeper into those topics.
 
 This is my project to build a personal assistant that helps me stay on top of the latest news and developments, so I can quickly identify what I need to learn more about. This is powered by Azure OpenAI and LangGraph. Users search for a topic, pick categories (Cloud, Kubernetes, AI, etc.) and the app fetches the latest news, uses an LLM to filter for technical relevance, summarises each article in parallel, and lets you ask follow-up questions about any article.
 

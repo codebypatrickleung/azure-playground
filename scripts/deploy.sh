@@ -20,9 +20,6 @@ readonly AZURE_OPENAI_DEPLOYMENT="model-router"
 # Helm chart
 readonly CHART_DIR="${ROOT_DIR}/charts/azure-playground"
 
-# Flux bootstrap settings
-readonly GITHUB_REPO="azure-playground"
-readonly FLUX_PATH="clusters/dev"
 
 #---------------------------------------------#
 # Logging Functions
@@ -39,7 +36,7 @@ usage() {
 Usage: $0 [OPTIONS]
 
 OPTIONS:
-    --run <section>   Run only the specified section: prereq, config, build, deploy, bootstrap, run
+    --run <section>   Run only the specified section: prereq, config, build, deploy, run
     --all             Run all sections in order
     -h, --help        Show this help message
 
@@ -47,7 +44,7 @@ EXAMPLES:
     $0 --all                    # Run complete deployment
     $0 --run prereq             # Check prerequisites only
     $0 --run build              # Build and push images only
-    $0 --run bootstrap          # Bootstrap Flux into AKS (one-time)
+    $0 --run run                # Push secrets to Key Vault and trigger Flux reconcile
 
 EOF
     exit 1
@@ -96,8 +93,6 @@ prereq_section() {
     require_cmd docker "" "Please install Docker Desktop for Mac: https://www.docker.com/products/docker-desktop/"
     require_cmd kubectl kubectl
     require_cmd npm npm
-    require_cmd flux fluxcd/tap/flux
-    
     info "All prerequisites satisfied."
 }
 
@@ -131,19 +126,30 @@ config_section() {
     AZURE_OPENAI_ENDPOINT=$(az cognitiveservices account show --resource-group "${AZURE_RG_NAME}" --name "${AZURE_OPENAI_NAME}" --query "properties.endpoint" -o tsv)
     [[ -z "$AZURE_OPENAI_NAME" || -z "$AZURE_OPENAI_ENDPOINT" ]] && { error "Azure OpenAI resource not found."; exit 1; }
     info "Azure OpenAI: $AZURE_OPENAI_NAME (Endpoint: $AZURE_OPENAI_ENDPOINT)"
-    
+
+    # Key Vault
+    KEY_VAULT_NAME=$(az keyvault list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
+    [[ -z "$KEY_VAULT_NAME" ]] && { error "Azure Key Vault not found in resource group ${AZURE_RG_NAME}. Run terraform apply first."; exit 1; }
+    info "Key Vault: $KEY_VAULT_NAME"
+
+    # Tenant ID (needed for SecretProviderClass)
+    TENANT_ID=$(az account show --query tenantId -o tsv)
+    [[ -z "$TENANT_ID" ]] && { error "Failed to retrieve tenant ID."; exit 1; }
+    info "Tenant ID: $TENANT_ID"
+
     # AKS cluster
     AKS_CLUSTER_NAME=$(az aks list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
     [[ -z "$AKS_CLUSTER_NAME" ]] && { error "AKS cluster not found."; exit 1; }
     info "AKS cluster: $AKS_CLUSTER_NAME"
-    
+
     # Container registry
     ACR_NAME=$(az acr list --resource-group "${AZURE_RG_NAME}" --query "[0].name" -o tsv)
     [[ -z "$ACR_NAME" ]] && { error "Azure Container Registry not found."; exit 1; }
     info "Container Registry: $ACR_NAME"
-    
+
     # Export variables for subsequent sections
-    export AZURE_RG_NAME AKS_RG_NAME UNIQUE_ID AZURE_OPENAI_NAME AZURE_OPENAI_ENDPOINT AKS_CLUSTER_NAME ACR_NAME
+    export AZURE_RG_NAME AKS_RG_NAME UNIQUE_ID AZURE_OPENAI_NAME AZURE_OPENAI_ENDPOINT \
+           AKS_CLUSTER_NAME ACR_NAME KEY_VAULT_NAME TENANT_ID
     
     info "Configuration completed successfully."
 }
@@ -211,49 +217,36 @@ deploy_section() {
         exit 1
     fi
     
-    # Get identity principal ID
+    # Get identity principal ID and client ID
     USER_ASSIGNED_IDENTITY_PID=$(az identity show --name "$USER_ASSIGNED_IDENTITY" --resource-group "$AKS_RG_NAME" --query principalId --output tsv)
-    [[ -z "$USER_ASSIGNED_IDENTITY_PID" ]] && { error "Failed to retrieve principal ID."; exit 1; }
-    info "User-assigned managed identity principal ID: $USER_ASSIGNED_IDENTITY_PID"
-    
+    USER_ASSIGNED_IDENTITY_CLIENT_ID=$(az identity show --name "$USER_ASSIGNED_IDENTITY" --resource-group "$AKS_RG_NAME" --query clientId --output tsv)
+    [[ -z "$USER_ASSIGNED_IDENTITY_PID" || -z "$USER_ASSIGNED_IDENTITY_CLIENT_ID" ]] && { error "Failed to retrieve kubelet identity IDs."; exit 1; }
+    info "Kubelet identity — principalId: $USER_ASSIGNED_IDENTITY_PID  clientId: $USER_ASSIGNED_IDENTITY_CLIENT_ID"
+
     # Get Azure OpenAI resource ID
     AZURE_OPENAI_ID=$(az cognitiveservices account show --resource-group "$AZURE_RG_NAME" --name "$AZURE_OPENAI_NAME" --query id -o tsv)
     [[ -z "$AZURE_OPENAI_ID" ]] && { error "Failed to retrieve Azure OpenAI resource ID."; exit 1; }
     info "Azure OpenAI resource ID: $AZURE_OPENAI_ID"
-    
-    # Assign role
+
+    # Assign Cognitive Services User role to kubelet identity (for managed-identity auth to OpenAI)
     info "Assigning 'Cognitive Services User' role..."
-    az role assignment create --assignee "$USER_ASSIGNED_IDENTITY_PID" --role "Cognitive Services User" --scope "$AZURE_OPENAI_ID"
-    
+    az role assignment create \
+        --assignee "$USER_ASSIGNED_IDENTITY_PID" \
+        --role "Cognitive Services User" \
+        --scope "$AZURE_OPENAI_ID" \
+        2>/dev/null || info "Role assignment already exists — skipping."
+
+    # Enable the Azure Key Vault CSI secrets-store add-on on AKS
+    info "Enabling Azure Key Vault CSI secrets-store add-on..."
+    az aks enable-addons \
+        --addons azure-keyvault-secrets-provider \
+        --resource-group "${AZURE_RG_NAME}" \
+        --name "${AKS_CLUSTER_NAME}" \
+        2>/dev/null || info "CSI add-on already enabled — skipping."
+
+    export USER_ASSIGNED_IDENTITY_PID USER_ASSIGNED_IDENTITY_CLIENT_ID
+
     info "Deployment setup completed."
-}
-
-#---------------------------------------------#
-# SECTION: Bootstrap
-#---------------------------------------------#
-bootstrap_section() {
-    info "Bootstrapping Flux into AKS cluster..."
-
-    # Validate required environment variables
-    [[ -z "${GITHUB_TOKEN:-}" ]] && { error "GITHUB_TOKEN environment variable is not set. Create a token at https://github.com/settings/tokens with repo scope."; exit 1; }
-    [[ -z "${GITHUB_USERNAME:-}" ]] && { error "GITHUB_USERNAME environment variable is not set."; exit 1; }
-
-    # Skip if Flux is already installed
-    if flux check --pre &>/dev/null && kubectl get namespace flux-system &>/dev/null; then
-        info "Flux is already bootstrapped. Skipping."
-        return 0
-    fi
-
-    flux bootstrap github \
-        --owner="${GITHUB_USERNAME}" \
-        --repository="${GITHUB_REPO}" \
-        --branch=main \
-        --path="${FLUX_PATH}" \
-        --personal \
-        --token-auth
-
-    info "Flux bootstrapped successfully."
-    info "Flux will now reconcile cluster state from: ${FLUX_PATH}"
 }
 
 #---------------------------------------------#
@@ -267,10 +260,27 @@ run_section() {
     # Validate required environment variables
     [[ -z "${NEWS_API_KEY:-}" ]] && { error "NEWS_API_KEY environment variable is not set. Get a free key at https://newsapi.org"; exit 1; }
 
-    # Create the values secret for Flux HelmRelease
-    # Dynamic values (image repos, OpenAI endpoint, API keys) are kept out of Git
-    info "Creating Helm values secret for Flux..."
-    kubectl create secret generic azure-playground-values \
+    # ── Store secrets in Azure Key Vault ─────────────────────────────────────
+    # All sensitive values live only in Key Vault; nothing sensitive goes into
+    # K8s Secrets or Git. The CSI driver syncs them into pods at runtime.
+    info "Storing secrets in Azure Key Vault (${KEY_VAULT_NAME})..."
+    az keyvault secret set \
+        --vault-name "${KEY_VAULT_NAME}" \
+        --name "azure-openai-endpoint" \
+        --value "${AZURE_OPENAI_ENDPOINT}" \
+        --output none
+    az keyvault secret set \
+        --vault-name "${KEY_VAULT_NAME}" \
+        --name "news-api-key" \
+        --value "${NEWS_API_KEY}" \
+        --output none
+    info "Secrets stored in Key Vault."
+
+    # ── Create ConfigMap for Flux HelmRelease ────────────────────────────────
+    # Only non-sensitive values go here: image repos + Key Vault identifiers.
+    # These are safe to store in a ConfigMap (not a Secret).
+    info "Creating Helm values ConfigMap for Flux..."
+    kubectl create configmap azure-playground-values \
         --namespace "${NAMESPACE}" \
         --from-literal=values.yaml="$(cat <<EOF
 frontend:
@@ -281,18 +291,25 @@ agentService:
   image:
     repository: ${LOGIN_SERVER}/${AGENT_SERVICE_IMAGE_NAME}
     tag: "${TAG}"
-  azureOpenAI:
-    endpoint: "${AZURE_OPENAI_ENDPOINT}"
-  newsApiKey: "${NEWS_API_KEY}"
+keyVault:
+  name: "${KEY_VAULT_NAME}"
+  tenantId: "${TENANT_ID}"
+  kubeletClientId: "${USER_ASSIGNED_IDENTITY_CLIENT_ID}"
 EOF
 )" \
         --dry-run=client -o yaml | kubectl apply -f -
 
-    info "Values secret created."
+    info "Values ConfigMap created."
 
-    # Trigger Flux to pull latest Git state and reconcile
+    # Trigger Flux to pull latest Git state immediately (instead of waiting
+    # up to 10 min for the next scheduled poll). Annotating the GitRepository
+    # CR is the standard Flux way to force an immediate reconcile — works
+    # regardless of whether Flux was bootstrapped via CLI or Azure extension.
     info "Triggering Flux reconciliation..."
-    flux reconcile kustomization apps --with-source
+    kubectl annotate gitrepository azure-playground \
+        --namespace flux-system \
+        reconcile.fluxcd.io/requestedAt="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --overwrite
 
     # Wait for the HelmRelease to become ready
     info "Waiting for HelmRelease to be ready..."
@@ -366,7 +383,6 @@ main() {
         config_section
         build_section
         deploy_section
-        bootstrap_section
         run_section
     else
         case "$run_section" in
@@ -384,16 +400,10 @@ main() {
                 config_section
                 deploy_section
                 ;;
-            bootstrap)
-                config_section
-                deploy_section
-                bootstrap_section
-                ;;
             run)
                 config_section
                 build_section
                 deploy_section
-                bootstrap_section
                 run_section
                 ;;
             *)

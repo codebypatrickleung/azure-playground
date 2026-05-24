@@ -5,5 +5,4 @@ metadata:
   labels:
     {{- include "azure-playground.agentService.labels" . | nindent 4 }}
 data:
-  AZURE_OPENAI_ENDPOINT: {{ required "agentService.azureOpenAI.endpoint is required" .Values.agentService.azureOpenAI.endpoint | quote }}
-  NEWS_API_KEY: {{ required "agentService.newsApiKey is required" .Values.agentService.newsApiKey | quote }}
+  ENVIRONMENT: {{ required "environment is required" .Values.environment | quote }}

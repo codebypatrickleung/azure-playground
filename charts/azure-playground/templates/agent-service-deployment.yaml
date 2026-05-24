@@ -23,16 +23,25 @@ spec:
               containerPort: 5001
               protocol: TCP
           env:
-            - name: AZURE_OPENAI_ENDPOINT
+            - name: ENVIRONMENT
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "azure-playground.name" . }}-agent-service-config
+                  key: ENVIRONMENT
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "azure-playground.name" . }}-agent-service-secrets
                   key: AZURE_OPENAI_ENDPOINT
             - name: NEWS_API_KEY
               valueFrom:
-                configMapKeyRef:
-                  name: {{ include "azure-playground.name" . }}-agent-service-config
+                secretKeyRef:
+                  name: {{ include "azure-playground.name" . }}-agent-service-secrets
                   key: NEWS_API_KEY
+          volumeMounts:
+            - name: kv-secrets
+              mountPath: /mnt/secrets
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
@@ -47,3 +56,10 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml .Values.agentService.resources | nindent 12 }}
+      volumes:
+        - name: kv-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "azure-playground.name" . }}-kv

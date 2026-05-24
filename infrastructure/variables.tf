@@ -15,6 +15,17 @@ variable "location" {
   type        = string
 }
 
+variable "github_username" {
+  description = "GitHub username that owns the azure-playground repository"
+  type        = string
+}
+
+variable "github_repo" {
+  description = "GitHub repository name for Flux GitOps"
+  type        = string
+  default     = "azure-playground"
+}
+
 variable "tags" {
   description = "(Optional) Specifies tags for all the resources"
   default = {
