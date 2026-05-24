@@ -10,7 +10,7 @@ spec:
       chart: ./charts/azure-playground
       sourceRef:
         kind: GitRepository
-        name: flux-system
+        name: azure-playground
         namespace: flux-system
       interval: 1m
   valuesFrom:
